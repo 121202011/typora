@@ -1,11 +1,16 @@
+
+
 相关资源
 
-| 服务名   | 地址                                 | 备注 |
-| -------- | ------------------------------------ | ---- |
-| jdk      | https://www.oracle.com/java/         |      |
-| rocketmq | https://rocketmq.apache.org/download |      |
+| 服务名   | 地址                                    | 备注     |
+| -------- | --------------------------------------- | -------- |
+| jdk      | https://www.oracle.com/java/            |          |
+| rocketmq | https://rocketmq.apache.org/download    |          |
+| 控制台   | https://rocketmq.apache.org/zh/download | 两主两从 |
 
-### **JDK 安装与环境配置步骤**
+![image-20250822155136568](../../../图像/image-20250822155136568.png)
+
+### **JDK 安装与环境配置步骤**（两主节点都需要）
 
 #### **1. 下载 JDK 安装包**
 
@@ -45,7 +50,7 @@ source /etc/profile
 java -version
 ```
 
-### 安装 RocketMQ
+### 安装 RocketMQ（两主节点都需要）
 
 #### **1. 解压 RocketMQ 安装包**
 
@@ -101,7 +106,7 @@ vim $ROCKETMQ_HOME/bin/mqbroker
 mkdir -p /opt/rocketmq/work && cd /opt/rocketmq/work
 ```
 
-##### **编写 NameServer 启停脚本**
+##### **编写 NameServer 启停脚本**（两节点一样）
 
 ```bash
 # 创建脚本文件
@@ -131,7 +136,7 @@ esac
 chmod +x namesrv-ctl.sh
 ```
 
-##### **编写 Broker 启停脚本**
+##### **编写 Broker 启停脚本**（broker-a-master）
 
 ```bash
 # 创建脚本文件
@@ -143,7 +148,7 @@ case $1 in
     start)
         export JAVA_OPT="-Duser.home=$(pwd)"
         # 关联本地 NameServer（默认端口 9876），启用代理模式
-        nohup sh $ROCKETMQ_HOME/bin/mqbroker -n localhost:9876 --enable-proxy &
+        nohup sh $ROCKETMQ_HOME/bin/mqbroker -n "192.168.1.201:9876;192.168.1.202:9876;192.168.1.203:9876" -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-a.properties &
         echo "Broker 启动成功"
         ;;
     stop)
@@ -159,7 +164,185 @@ esac
 chmod +x broker-ctl.sh
 ```
 
-#### **5. 启动与验证**
+##### **编写 Broker 启停脚本**（broker-a-slave）
+
+```bash
+# 创建脚本文件
+vim broker-ctl.sh
+
+# 脚本内容
+#!/bin/bash
+case $1 in
+    start)
+        export JAVA_OPT="-Duser.home=$(pwd)"
+        # 关联本地 NameServer（默认端口 9876），启用代理模式
+        nohup sh $ROCKETMQ_HOME/bin/mqbroker -n "192.168.1.201:9876;192.168.1.202:9876;192.168.1.203:9876" -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-a-s.properties &
+        echo "Broker 启动成功"
+        ;;
+    stop)
+        sh $ROCKETMQ_HOME/bin/mqshutdown broker
+        echo "Broker 已停止"
+        ;;
+    *)
+        echo "使用方法: broker-ctl.sh start | stop"
+        ;;
+esac
+
+# 赋予执行权限
+chmod +x broker-ctl.sh
+```
+
+**编写 Broker 启停脚本**（broker-b-master）
+
+```bash
+# 创建脚本文件
+vim broker-ctl.sh
+
+# 脚本内容
+#!/bin/bash
+case $1 in
+    start)
+        export JAVA_OPT="-Duser.home=$(pwd)"
+        # 关联本地 NameServer（默认端口 9876），启用代理模式
+        nohup sh $ROCKETMQ_HOME/bin/mqbroker -n "192.168.1.201:9876;192.168.1.202:9876;192.168.1.203:9876" -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-b.properties &
+        echo "Broker 启动成功"
+        ;;
+    stop)
+        sh $ROCKETMQ_HOME/bin/mqshutdown broker
+        echo "Broker 已停止"
+        ;;
+    *)
+        echo "使用方法: broker-ctl.sh start | stop"
+        ;;
+esac
+
+# 赋予执行权限
+chmod +x broker-ctl.sh
+```
+
+**编写 Broker 启停脚本**（broker-b-slave）
+
+```bash
+# 创建脚本文件
+vim broker-ctl.sh
+
+# 脚本内容
+#!/bin/bash
+case $1 in
+    start)
+        export JAVA_OPT="-Duser.home=$(pwd)"
+        # 关联本地 NameServer（默认端口 9876），启用代理模式
+        nohup sh $ROCKETMQ_HOME/bin/mqbroker -n "192.168.1.201:9876;192.168.1.202:9876;192.168.1.203:9876" -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-b-s.properties &
+        echo "Broker 启动成功"
+        ;;
+    stop)
+        sh $ROCKETMQ_HOME/bin/mqshutdown broker
+        echo "Broker 已停止"
+        ;;
+    *)
+        echo "使用方法: broker-ctl.sh start | stop"
+        ;;
+esac
+
+# 赋予执行权限
+chmod +x broker-ctl.sh
+```
+
+
+
+#### 5.多主模式的 Broker 配置
+
+##### broker-a-master配置
+
+```bash
+# 集群名              相同的集群名的Broker在同一个集群
+brokerClusterName=DefaultCluster
+# Broker 名          区分不同的Broker 相同的Broker名属于同一个Broker小集群
+brokerName=broker-a (broker-b, broker-c, etc.)
+# Broker ID          0 表示Master 大于0 表示Slave
+brokerId=0
+# 删除过期文件时间      每天凌晨四点 此时用户活跃度低，机器资源充足
+deleteWhen=04
+# 文件保留时间         48天
+fileReservedTime=48
+# Broker 角色           
+# SYNC_MASTER        主节点 主从复制为同步复制
+# ASYNC_MASTER       主节点 主从复制为异步复制
+# SLAVE              从节点
+brokerRole=ASYNC_MASTER
+# 刷盘类型             
+# SYNC_FLUSH         同步刷盘 性能高，延迟低，但小概率丢数据   
+# ASYNC_FLUSH        异步刷盘 性能相对较低，延迟相对较高，但理论上能够不丢数据
+flushDiskType=ASYNC_FLUSH
+# 从节点是否可读取消息
+slaveReadEnable=true
+```
+
+##### broker-a-slave配置
+
+```bash
+# 集群名              相同的集群名的Broker在同一个集群
+brokerClusterName=DefaultCluster
+# Broker 名          区分不同的Broker 相同的Broker名属于同一个Broker小集群
+brokerName=broker-a  (broker-b, broker-c, etc.)
+# Broker ID          0 表示Master 大于0 表示Slave
+brokerId=1
+deleteWhen=04
+fileReservedTime=48
+# Broker 角色           
+# SLAVE              从节点
+brokerRole=SLAVE
+flushDiskType=ASYNC_FLUSH
+# 从节点是否可读取消息
+slaveReadEnable=true
+```
+
+##### broker-b-master配置
+
+```bash
+# 集群名              相同的集群名的Broker在同一个集群
+brokerClusterName=DefaultCluster
+# Broker 名          区分不同的Broker 相同的Broker名属于同一个Broker小集群
+brokerName=broker-b (broker-b, broker-c, etc.)
+# Broker ID          0 表示Master 大于0 表示Slave
+brokerId=0
+# 删除过期文件时间      每天凌晨四点 此时用户活跃度低，机器资源充足
+deleteWhen=04
+# 文件保留时间         48天
+fileReservedTime=48
+# Broker 角色           
+# SYNC_MASTER        主节点 主从复制为同步复制
+# ASYNC_MASTER       主节点 主从复制为异步复制
+# SLAVE              从节点
+brokerRole=ASYNC_MASTER
+# 刷盘类型             
+# SYNC_FLUSH         同步刷盘 性能高，延迟低，但小概率丢数据   
+# ASYNC_FLUSH        异步刷盘 性能相对较低，延迟相对较高，但理论上能够不丢数据
+flushDiskType=ASYNC_FLUSH
+# 从节点是否可读取消息
+slaveReadEnable=true
+```
+
+##### broker-b-slave配置
+
+```bash
+# 集群名              相同的集群名的Broker在同一个集群
+brokerClusterName=DefaultCluster
+# Broker 名          区分不同的Broker 相同的Broker名属于同一个Broker小集群
+brokerName=broker-b  (broker-b, broker-c, etc.)
+# Broker ID          0 表示Master 大于0 表示Slave
+brokerId=1
+deleteWhen=04
+fileReservedTime=48
+# Broker 角色           
+# SLAVE              从节点
+brokerRole=SLAVE
+flushDiskType=ASYNC_FLUSH
+# 从节点是否可读取消息
+slaveReadEnable=true
+```
+
+#### **6. 启动与验证**（两节点都操作）
 
 ```bash
 # 启动 NameServer
@@ -180,7 +363,7 @@ tail -f namesrv.log  # 查看 NameServer 日志
 tail -f broker.log   # 查看 Broker 日志
 ```
 
-#### **6. 停止服务**
+#### **7. 停止服务**
 
 ```bash
 # 停止 Broker
@@ -192,4 +375,6 @@ tail -f broker.log   # 查看 Broker 日志
 # 再次查看进程确认
 jps
 ```
+
+
 

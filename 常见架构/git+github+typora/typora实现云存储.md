@@ -81,6 +81,6 @@ git add -A  # -A 等价于 --all，包含工作区所有变更
 git commit -m "提交说明：例如 初始化项目 / 添加登录功能 / 修复XXbug"
 
 # 将本地提交推送到远程 GitHub 仓库（首次推送可能需要输入密码或 SSH 密钥密码）
-git push origin main  # 由于已配置关联，可简化为 git push
+git push origin  # 由于已配置关联，可简化为 git push
 ```
 
